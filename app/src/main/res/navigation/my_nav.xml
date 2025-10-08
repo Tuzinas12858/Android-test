@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/my_nav"
+    app:startDestination="@id/audioFragment">
+
+    <fragment
+        android:id="@+id/audioFragment"
+        android:name="com.example.appsas.AudioFragment"
+        android:label="fragment_audio"
+        tools:layout="@layout/fragment_audio" >
+        <action
+            android:id="@+id/action_audioFragment_to_mainActivity"
+            app:destination="@id/mainActivity"
+            app:enterAnim="@android:anim/fade_out" />
+        <action
+            android:id="@+id/action_audioFragment_to_imageFragment2"
+            app:destination="@id/imageFragment"
+            app:enterAnim="@android:anim/fade_in" />
+    </fragment>
+    <fragment
+        android:id="@+id/imageFragment"
+        android:name="com.example.appsas.ImageFragment"
+        android:label="fragment_image"
+        tools:layout="@layout/fragment_image" >
+        <action
+            android:id="@+id/action_imageFragment_to_mainActivity"
+            app:destination="@id/mainActivity"
+            app:enterAnim="@android:anim/slide_in_left" />
+    </fragment>
+    <activity
+        android:id="@+id/mainActivity"
+        android:name="com.example.appsas.MainActivity"
+        android:label="activity_main"
+        tools:layout="@layout/activity_main" />
+</navigation>

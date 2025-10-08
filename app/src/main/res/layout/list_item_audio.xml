@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="horizontal"
+    android:padding="8dp"
+    android:descendantFocusability="blocksDescendants">
+
+
+    <TextView
+        android:id="@+id/song_title_item_text_view"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textSize="16sp"
+        android:textColor="@android:color/white"
+        android:text="Song Title" />
+
+    <Button
+        android:id="@+id/delete_song_button"
+
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="4dp"
+        android:backgroundTint="#619E1919"
+        android:clickable="false"
+        android:focusable="false"
+        app:icon="@android:drawable/ic_delete"
+        app:iconGravity="textStart"
+        app:iconPadding="0dp" />
+
+</LinearLayout>
