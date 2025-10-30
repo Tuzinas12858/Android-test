@@ -28,6 +28,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.ViewModelProvider; // ADD THIS
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,7 +59,7 @@ public class AudioFragment extends Fragment {
     private Button nextButton;
     private Button previousButton;
     private Button stopButton;
-
+    private CombinedViewModel viewModel; // ADD THIS
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -74,7 +75,7 @@ public class AudioFragment extends Fragment {
         previousButton = view.findViewById(R.id.previous_button);
         stopButton = view.findViewById(R.id.stop_button);
         playlistListView = view.findViewById(R.id.playlist_list_view);
-
+        viewModel = new ViewModelProvider(requireActivity()).get(CombinedViewModel.class);
         playlistAdapter = new AudioListAdapter(requireContext(), songTitles);
         playlistListView.setAdapter(playlistAdapter);
         loadPlaylist();
@@ -175,8 +176,16 @@ public class AudioFragment extends Fragment {
 
         playlistListView.setOnItemClickListener((parent, view1, position, id) -> {
             if (isServiceBound) {
+                // This logic remains the same
                 audioService.playSong(position);
                 updateUI(position);
+
+                // ADD THIS
+                // Get the selected items and update the ViewModel
+                Uri selectedUri = playlist.get(position);
+                String selectedTitle = songTitles.get(position);
+                viewModel.selectAudio(selectedUri, selectedTitle);
+                Toast.makeText(requireContext(), "'" + selectedTitle + "' selected for combined view", Toast.LENGTH_SHORT).show();
             }
         });
 

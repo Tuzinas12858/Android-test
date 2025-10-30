@@ -21,7 +21,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
-
+import androidx.lifecycle.ViewModelProvider; // ADD THIS
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -35,13 +35,12 @@ public class ImageFragment extends Fragment {
     private ImageAdapter imageAdapter;
     private List<Uri> imageUris = new ArrayList<>();
     private ActivityResultLauncher<String[]> imagePickerLauncher;
-
+    private CombinedViewModel viewModel; // ADD THIS
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_image, container, false);
-
         // Initialize UI components from the fragment's view
         imageGridView = view.findViewById(R.id.image_grid_view);
         Button selectImageButton = view.findViewById(R.id.select_image_button);
@@ -50,7 +49,7 @@ public class ImageFragment extends Fragment {
         imageAdapter = new ImageAdapter(requireContext(), imageUris);
         imageGridView.setAdapter(imageAdapter);
         loadImageList();
-
+        viewModel = new ViewModelProvider(requireActivity()).get(CombinedViewModel.class);
         // Set the click listener for the delete button (this is the correct one)
         imageAdapter.setOnDeleteClickListener(position -> {
             // Remove the image from the list
@@ -64,7 +63,11 @@ public class ImageFragment extends Fragment {
 
             Toast.makeText(requireContext(), "Image deleted", Toast.LENGTH_SHORT).show();
         });
-
+        imageGridView.setOnItemClickListener((parent, view1, position, id) -> {
+            Uri selectedUri = imageUris.get(position);
+            viewModel.selectImage(selectedUri);
+            Toast.makeText(requireContext(), "Image selected for combined view", Toast.LENGTH_SHORT).show();
+        });
         imagePickerLauncher = registerForActivityResult(
                 new ActivityResultContracts.OpenMultipleDocuments(),
                 uris -> {
@@ -105,7 +108,6 @@ public class ImageFragment extends Fragment {
         );
 
         selectImageButton.setOnClickListener(v -> imagePickerLauncher.launch(new String[]{"image/*"}));
-
         // This is the duplicate call that was causing the crash. It has been removed.
 
         return view;
