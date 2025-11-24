@@ -28,25 +28,31 @@
 
             <Button
                 android:id="@+id/audio_section_button"
-                android:layout_width="120dp"
+                android:layout_width="wrap_content"
                 android:layout_height="62dp"
                 android:layout_gravity="center"
                 android:text="Audio" />
 
             <Button
                 android:id="@+id/image_section_button"
-                android:layout_width="120dp"
+                android:layout_width="wrap_content"
                 android:layout_height="62dp"
                 android:layout_gravity="center"
                 android:text="Images" />
 
             <Button
                 android:id="@+id/combined_section_button"
-                android:layout_width="120dp"
+                android:layout_width="wrap_content"
                 android:layout_height="62dp"
                 android:layout_gravity="center"
                 android:text="Combined" />
 
+            <Button
+                android:id="@+id/video_section_button"
+                android:layout_width="108dp"
+                android:layout_height="62dp"
+                android:layout_gravity="center"
+                android:text="Video" />
         </LinearLayout>
     </FrameLayout>
 

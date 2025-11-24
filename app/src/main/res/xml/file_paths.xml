@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!--
+    `external-path` žymi įrenginio pagrindinį išorinės saugyklos aplanką.
+    Tai apima viešus aplankus, tokius kaip "Movies", "Downloads" ir t.t.
+    Būtent šio elemento reikia, kad būtų galima dalintis failais,
+    esančiais Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES).
+    -->
+    <external-path
+        name="external_files"
+        path="." />
+</paths>

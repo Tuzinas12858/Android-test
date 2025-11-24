@@ -24,18 +24,19 @@
         android:layout_height="300dp"
         android:scaleType="centerCrop"
         android:visibility="gone"
-        android:layout_marginTop="80dp"  app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="80dp"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        tools:src="@tools:sample/backgrounds/scenic" />
+        tools:src="@mipmap/ic_launcher" />
 
     <TextView
         android:id="@+id/combined_audio_title"
-        android:layout_width="0dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:gravity="center"
-        android:textSize="20sp"
+        android:layout_marginTop="16dp"
+        android:textSize="16sp"
+        android:textColor="@android:color/white"
         android:textStyle="bold"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
@@ -72,8 +73,23 @@
             android:id="@+id/combined_stop_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
             android:text="Stop" />
 
     </LinearLayout>
+
+    <Button
+        android:id="@+id/combine_video_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Sukurti Video"
+        android:backgroundTint="#4E943A"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:layout_marginTop="32dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/combined_player_controls" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

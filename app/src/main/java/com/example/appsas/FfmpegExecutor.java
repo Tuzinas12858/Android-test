@@ -1,118 +1,168 @@
 package com.example.appsas;
 
 import android.content.Context;
+import android.media.MediaScannerConnection;
 import android.net.Uri;
-import android.os.Environment;
+import android.os.Environment; // PRIDĖTA: nauja importo eilutė
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.widget.Toast;
 
-import com.antonkarpenko.ffmpegkit.FFmpegKit;
-import com.antonkarpenko.ffmpegkit.ReturnCode;
+import com.arthenica.ffmpegkit.FFmpegKit;
+import com.arthenica.ffmpegkit.ReturnCode;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Locale;
+
+/**
+ * Sąsaja, skirta FFmpeg komandos vykdymo rezultatams perduoti.
+ */
+
 
 public class FfmpegExecutor {
 
-    private static final String TAG = "FFMPEG_EXECUTOR";
+    private static final String TAG = "FfmpegExecutor";
 
     /**
-     * Executes the FFmpeg command to combine an image and audio file into a video.
-     * @param context Application context, used for file access and toasts.
-     * @param imageUri Content URI of the input image.
-     * @param audioUri Content URI of the input audio.
+     * Nukopijuoja turinio URI (Content URI) failą į viešą aplanką, kad FFmpeg galėtų jį pasiekti.
+     * Naudosime privačią saugyklą tik laikinam nuotraukos ir garso saugojimui.
      */
-    public static void executeVideoCommand(Context context, Uri imageUri, Uri audioUri) {
+    private static File copyUriToFile(Context context, Uri uri, String filePrefix, String fileExtension) throws Exception {
+        // Laikinus failus kopijuojame į privačią saugyklą, kad nereikėtų papildomų leidimų
+        InputStream inputStream = context.getContentResolver().openInputStream(uri);
+        if (inputStream == null) {
+            throw new Exception("Negalima atidaryti įvesties srauto URI: " + uri.toString());
+        }
 
-        Toast.makeText(context, "Video combination process started...", Toast.LENGTH_SHORT).show();
+        File tempFile = new File(context.getExternalFilesDir(null), filePrefix + System.currentTimeMillis() + fileExtension);
+        try (OutputStream outputStream = new FileOutputStream(tempFile)) {
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = inputStream.read(buffer)) > 0) {
+                outputStream.write(buffer, 0, length);
+            }
+        } finally {
+            inputStream.close();
+        }
+        return tempFile;
+    }
 
-        // --- 1. PREPARE FILES ---
-        String imagePath = getReadableFilePath(context, imageUri, ".jpg");
-        String audioPath = getReadableFilePath(context, audioUri, ".mp3");
-        File outputFile = getOutputVideoFile(context);
-        String outputPath = outputFile.getAbsolutePath();
+    /**
+     * Vykdo FFmpeg komandą, kad sujungtų statinį vaizdą ir garso įrašą į MP4 vaizdo įrašą.
+     * Išvestis saugoma viešajame "Movies" aplanke.
+     * @param listener Klausytojas, kuris praneš apie sėkmę arba nesėkmę.
+     */
+    public static void executeVideoCommand(Context context, Uri imageUri, Uri audioUri, FfmpegListener listener) {
+        Handler mainHandler = new Handler(Looper.getMainLooper());
 
-        if (imagePath == null || audioPath == null) {
-            Toast.makeText(context, "Error: Could not prepare input files. Check Logcat.", Toast.LENGTH_LONG).show();
+        // 1. Nustatyti išvesties vietą (VIEŠAS "MOVIES" APLANKAS)
+        // Šis kelias turėtų būti pasiekiamas per failų tvarkyklę.
+        File outputDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES);
+        if (outputDir != null && !outputDir.exists()) {
+            // Svarbu: Android Q+ gali apriboti šį metodą, tačiau jis geriausiai tinka
+            // platesniam suderinamumui. Tikrasis kelias yra priklausomas nuo API lygio.
+            outputDir.mkdirs();
+        }
+
+        File outputFile = new File(outputDir, "APPSAS_Render_" + System.currentTimeMillis() + ".mp4");
+        // 2. Nukopijuoti įvesties failus į laikiną privačią saugyklą
+        File imageFile = null;
+        File audioFile = null;
+
+        try {
+            String imageExtension = "jpg";
+            String mimeType = context.getContentResolver().getType(imageUri);
+            if (mimeType != null && mimeType.contains("/")) {
+                imageExtension = mimeType.substring(mimeType.lastIndexOf("/") + 1);
+            }
+            imageFile = copyUriToFile(context, imageUri, "input_image_", "." + imageExtension);
+
+            String audioExtension = "mp3";
+            String audioMimeType = context.getContentResolver().getType(audioUri);
+            if (audioMimeType != null && audioMimeType.contains("/")) {
+                audioExtension = audioMimeType.substring(audioMimeType.lastIndexOf("/") + 1);
+            }
+            audioFile = copyUriToFile(context, audioUri, "input_audio_", "." + audioExtension);
+
+        } catch (Exception e) {
+            String error = "Klaida kopijuojant failus: " + e.getMessage();
+            Log.e(TAG, error);
+            mainHandler.post(() -> Toast.makeText(context, error, Toast.LENGTH_LONG).show());
+            if (listener != null) {
+                listener.onFfmpegFailure(error);
+            }
+            if (imageFile != null) imageFile.delete();
+            if (audioFile != null) audioFile.delete();
             return;
         }
 
-        Log.d(TAG, "Input Image Path: " + imagePath);
-        Log.d(TAG, "Input Audio Path: " + audioPath);
-        Log.d(TAG, "Output Video Path: " + outputPath);
-
-        // --- 2. CONSTRUCT COMMAND (FILTER REMOVED for COLOR) ---
-        String command = String.format(
-                // The black/white filter has been removed.
-                // Command now loops image, adds audio, encodes, and stops at audio end.
-                "-y -loop 1 -i %s -i %s -c:v libx264 -pix_fmt yuv420p -shortest %s",
-                imagePath, audioPath, outputPath
+        // 3. Sudaryti FFmpeg komandą
+        String ffmpegCommand = String.format(
+                Locale.US,
+                "-y -loop 1 -i \"%s\" -i \"%s\" -vf format=gray,scale=1080:1080 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -shortest \"%s\"",
+                imageFile.getAbsolutePath(),
+                audioFile.getAbsolutePath(),
+                outputFile.getAbsolutePath()
         );
 
-        // --- 3. EXECUTE FFmpeg ---
-        FFmpegKit.executeAsync(command, session -> {
+        // 4. Vykdyti FFmpeg
+        Toast.makeText(context, "Pradedamas vaizdo įrašo generavimas į VIEŠĄJĮ aplanką 'Movies'...", Toast.LENGTH_LONG).show();
 
-            // --- 4. CLEANUP & FEEDBACK (Runs on completion) ---
+        File finalImageFile = imageFile;
+        File finalAudioFile = audioFile;
 
-            // Cleanup: Delete the temporary files created from the URIs
-            new File(imagePath).delete();
-            new File(audioPath).delete();
+        FFmpegKit.executeAsync(ffmpegCommand, session -> {
+            com.arthenica.ffmpegkit.ReturnCode returnCode = session.getReturnCode();
+            String message;
 
-            ReturnCode returnCode = session.getReturnCode();
+            // Išvalyti LAIKINUS privačius įvesties failus
+            if (finalImageFile != null) finalImageFile.delete();
+            if (finalAudioFile != null) finalAudioFile.delete();
 
             if (ReturnCode.isSuccess(returnCode)) {
-                Toast.makeText(context, "✅ Video created successfully! Saved to: " + outputFile.getName(), Toast.LENGTH_LONG).show();
+                message = "Vaizdo įrašas sėkmingai sukurtas VIEŠAME aplanke: " + outputFile.getAbsolutePath();
+                Log.d(TAG, message);
+
+                // **PRANEŠAME MEDIA SCANNER'IUI APIE SUKURTĄ FAILĄ VIEŠOJE SAUGYKLOJE**
+                MediaScannerConnection.scanFile(
+                        context,
+                        new String[] { outputFile.getAbsolutePath() },
+                        new String[] { "video/mp4" },
+                        null
+                );
+
+                if (listener != null) {
+                    listener.onFfmpegSuccess(outputFile.getAbsolutePath());
+                }
             } else if (ReturnCode.isCancel(returnCode)) {
-                Toast.makeText(context, "Video creation cancelled.", Toast.LENGTH_LONG).show();
+                message = "Vaizdo įrašo generavimas atšauktas.";
+                Log.d(TAG, message);
+                if (listener != null) {
+                    listener.onFfmpegFailure(message);
+                }
+                if (outputFile.exists()) outputFile.delete();
             } else {
-                String output = session.getAllLogsAsString();
-                Log.e(TAG, "FFmpeg Command failed. Return Code: " + returnCode);
-                Log.e(TAG, "FFmpeg Output: " + output);
-                Toast.makeText(context, "❌ Video creation failed! Check Logcat for details.", Toast.LENGTH_LONG).show();
+                String log = session.getAllLogsAsString();
+                message = "Klaida generuojant vaizdo įrašą. Klaidos kodas: " + returnCode + "\nLog: " + log;
+                Log.e(TAG, message);
+                if (listener != null) {
+                    listener.onFfmpegFailure(message);
+                }
+                if (outputFile.exists()) outputFile.delete();
             }
+
+            final String finalMessage = message;
+            mainHandler.post(() -> Toast.makeText(context, finalMessage, Toast.LENGTH_LONG).show());
         });
     }
+    public interface FfmpegListener {
+        void onFfmpegStart();
 
-    // --- Helper methods remain the same ---
-
-    private static String getReadableFilePath(Context context, Uri uri, String preferredExtension) {
-        if (uri == null) return null;
-
-        String fileName = "temp_" + System.currentTimeMillis() + preferredExtension;
-        File tempFile = new File(context.getCacheDir(), fileName);
-
-        try (InputStream inputStream = context.getContentResolver().openInputStream(uri);
-             OutputStream outputStream = new FileOutputStream(tempFile)) {
-
-            if (inputStream == null) {
-                Log.e(TAG, "Input stream is null for URI: " + uri);
-                return null;
-            }
-
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            while ((bytesRead = inputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, bytesRead);
-            }
-
-            return tempFile.getAbsolutePath();
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error copying Uri to file. Check persistent permission grant.", e);
-            return null;
-        }
-    }
-
-    private static File getOutputVideoFile(Context context) {
-        File moviesDir = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES);
-        if (moviesDir == null) {
-            moviesDir = context.getCacheDir();
-        }
-        if (!moviesDir.exists()) {
-            moviesDir.mkdirs();
-        }
-        return new File(moviesDir, "combined_video_" + System.currentTimeMillis() + ".mp4");
+        void onFfmpegSuccess(String outputFilePath);
+        void onFfmpegFailure(String errorMessage);
     }
 }
