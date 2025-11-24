@@ -14,3 +14,16 @@ VIDEO fragmentas:
   - Nuotraukų ikėlimas iš internal storage
   - Nuotraukų displayinimas lentelėje
   - Įkeltų nuotraukų ištrinimas
+
+
+11-24 funkcionalumas
+  - Pagaliau pridėtas veikiantis FFMPEG
+  - Galima pasirinkti nuotrauką
+  - Galima pasirinkti audio failą
+  - Pridėta trečia sekcija - COMBINED
+  - COMBINED sekcijoj galime matyti pasirinktą nuotrauką/audio failą
+  - COMBINED sekcijoj galime paspausti SUKURTI VIDEO mygtuką ir bus sukuriamas vaizdo įrašas (demo)
+  - Vaizdo įrašas saugojamas android vidinėje atmintyje
+  - Pridėta ketvirta sekcija - Video
+  - Video sekcijoj galime matyti visus sukurtus mūsų video
+  - Video sekcijoj paspaudus ant video galime juos peržiūrėti
