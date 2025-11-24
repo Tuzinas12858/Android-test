@@ -6,9 +6,9 @@ import android.widget.Button;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
-// ADD THIS IMPORT
 import androidx.lifecycle.ViewModelProvider;
-
+import com.antonkarpenko.ffmpegkit.FFmpegKit;
+import com.antonkarpenko.ffmpegkit.ReturnCode;
 public class MainActivity extends AppCompatActivity {
     private Button audioButton;
     private Button imageButton;
@@ -21,8 +21,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // ADD THIS
-        // Initialize the shared ViewModel
+
         viewModel = new ViewModelProvider(this).get(CombinedViewModel.class);
 
         audioButton = findViewById(R.id.audio_section_button);

@@ -104,7 +104,7 @@
                     android:id="@+id/previous_button"
                     android:layout_width="50dp"
                     android:layout_height="50dp"
-                    app:icon="@android:drawable/ic_media_previous"
+                    app:icon="@android:drawable/ic_media_rew"
                     tools:layout_editor_absoluteX="88dp"
                     tools:layout_editor_absoluteY="323dp" />
 
@@ -123,7 +123,7 @@
                     android:layout_width="50dp"
                     android:layout_height="50dp"
                     android:text="Next"
-                    app:icon="@android:drawable/ic_media_next"
+                    app:icon="@android:drawable/ic_media_ff"
                     tools:layout_editor_absoluteX="238dp"
                     tools:layout_editor_absoluteY="323dp" />
 

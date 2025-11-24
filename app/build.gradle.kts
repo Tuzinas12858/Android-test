@@ -44,4 +44,5 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
+    implementation("io.github.trongnhantaisacventoan:ffmpeg-kit-min-gpl:7.1.1")
 }
