@@ -46,5 +46,7 @@ dependencies {
     androidTestImplementation(libs.espresso.core)
     implementation("com.arthenica:smart-exception-java:0.2.1")
     implementation(files("libs/ffmpeg-kit-full-gpl-6.0-1.LTS.aar"))
+    implementation ("com.github.bumptech.glide:glide:4.16.0")
+    annotationProcessor ("com.github.bumptech.glide:compiler:4.16.0")
 
 }

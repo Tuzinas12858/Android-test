@@ -6,6 +6,7 @@ import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.IBinder;
+import android.util.Log;
 
 import androidx.annotation.Nullable;
 
@@ -13,12 +14,22 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class AudioService extends Service implements MediaPlayer.OnCompletionListener {
+public class AudioService extends Service implements MediaPlayer.OnCompletionListener, MediaPlayer.OnPreparedListener {
 
     private MediaPlayer mediaPlayer;
     private final IBinder binder = new LocalBinder();
     private List<Uri> playlist = new ArrayList<>();
     private int currentSongIndex = -1;
+    private AudioServiceCallback callback;
+
+    public interface AudioServiceCallback {
+        void onSongPrepared(int duration, int index);
+        void onSongCompletion();
+    }
+
+    public void setCallback(AudioServiceCallback callback) {
+        this.callback = callback;
+    }
 
     public class LocalBinder extends Binder {
         AudioService getService() {
@@ -37,6 +48,7 @@ public class AudioService extends Service implements MediaPlayer.OnCompletionLis
         super.onCreate();
         mediaPlayer = new MediaPlayer();
         mediaPlayer.setOnCompletionListener(this);
+        mediaPlayer.setOnPreparedListener(this);
     }
 
     public void setPlaylist(List<Uri> newPlaylist) {
@@ -46,23 +58,31 @@ public class AudioService extends Service implements MediaPlayer.OnCompletionLis
     public void playSong(int index) {
         if (index < 0 || index >= playlist.size()) return;
 
-        if (mediaPlayer == null) {
+        if (mediaPlayer != null) {
+            mediaPlayer.stop();
+            mediaPlayer.reset();
+        } else {
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setOnCompletionListener(this);
+            mediaPlayer.setOnPreparedListener(this);
         }
 
-        if (mediaPlayer.isPlaying()) {
-            mediaPlayer.stop();
-        }
+        currentSongIndex = index;
+        Uri currentUri = playlist.get(currentSongIndex);
 
-        mediaPlayer.reset();
         try {
-            mediaPlayer.setDataSource(this, playlist.get(index));
-            mediaPlayer.prepare();
-            mediaPlayer.start();
-            currentSongIndex = index;
+            mediaPlayer.setDataSource(getApplicationContext(), currentUri);
+            mediaPlayer.prepareAsync();
         } catch (IOException e) {
-            e.printStackTrace();
+            Log.e("AudioService", "Error setting data source or preparing", e);
+        }
+    }
+
+    @Override
+    public void onPrepared(MediaPlayer mp) {
+        mp.start();
+        if (callback != null) {
+            callback.onSongPrepared(mp.getDuration(), currentSongIndex);
         }
     }
 
@@ -82,6 +102,10 @@ public class AudioService extends Service implements MediaPlayer.OnCompletionLis
         if (mediaPlayer != null) {
             mediaPlayer.stop();
             mediaPlayer.reset();
+            currentSongIndex = -1;
+            if (callback != null) {
+                callback.onSongCompletion();
+            }
         }
     }
 
@@ -90,11 +114,19 @@ public class AudioService extends Service implements MediaPlayer.OnCompletionLis
     }
 
     public int getCurrentPosition() {
-        return mediaPlayer != null ? mediaPlayer.getCurrentPosition() : 0;
+        try {
+            return mediaPlayer != null ? mediaPlayer.getCurrentPosition() : 0;
+        } catch (IllegalStateException e) {
+            return 0;
+        }
     }
 
     public int getDuration() {
-        return mediaPlayer != null ? mediaPlayer.getDuration() : 0;
+        try {
+            return mediaPlayer != null ? mediaPlayer.getDuration() : 0;
+        } catch (IllegalStateException e) {
+            return 0;
+        }
     }
 
     public void seekTo(int position) {
@@ -113,17 +145,16 @@ public class AudioService extends Service implements MediaPlayer.OnCompletionLis
         if (currentSongIndex < playlist.size()) {
             playSong(currentSongIndex);
         } else {
-            // End of playlist
             stopSong();
         }
     }
 
     @Override
     public void onDestroy() {
+        super.onDestroy();
         if (mediaPlayer != null) {
             mediaPlayer.release();
             mediaPlayer = null;
         }
-        super.onDestroy();
     }
 }

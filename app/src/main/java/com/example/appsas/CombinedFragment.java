@@ -11,14 +11,18 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-
+import android.widget.ProgressBar;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+import java.io.File;
+import android.util.Log;
 
-// Implementuoti FFmpegExecutor.FfmpegListener sąsają atgaliniam ryšiui
 public class CombinedFragment extends Fragment implements FfmpegExecutor.FfmpegListener {
 
     private CombinedViewModel viewModel;
@@ -26,9 +30,9 @@ public class CombinedFragment extends Fragment implements FfmpegExecutor.FfmpegL
     private TextView combinedAudioTitle;
     private TextView nothingSelectedText;
     private LinearLayout combinedPlayerControls;
-    private Button playButton, pauseButton, stopButton;
-    private Button combineButton; // Mygtukas FFmpeg vykdymui
-
+    private Button playButton, pauseButton;
+    private Button combineButton;
+    private ProgressBar renderProgressBar;
     private MediaPlayer mediaPlayer;
     private Uri currentAudioUri;
 
@@ -37,167 +41,184 @@ public class CombinedFragment extends Fragment implements FfmpegExecutor.FfmpegL
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_combined, container, false);
 
-        // Rasti vaizdo elementus (Find views)
         combinedImageView = view.findViewById(R.id.combined_image_view);
         combinedAudioTitle = view.findViewById(R.id.combined_audio_title);
         nothingSelectedText = view.findViewById(R.id.nothing_selected_text);
+
         combinedPlayerControls = view.findViewById(R.id.combined_player_controls);
+
         playButton = view.findViewById(R.id.combined_play_button);
         pauseButton = view.findViewById(R.id.combined_pause_button);
-        stopButton = view.findViewById(R.id.combined_stop_button);
-        // Rasti naują mygtuką sujungimui
         combineButton = view.findViewById(R.id.combine_video_button);
-
-        // Inicijuoti MediaPlayer
-        mediaPlayer = new MediaPlayer();
-        mediaPlayer.setOnCompletionListener(mp -> stopAudio());
-
-        // Gauti ViewModel
+        renderProgressBar = view.findViewById(R.id.render_progress_bar);
         viewModel = new ViewModelProvider(requireActivity()).get(CombinedViewModel.class);
 
-        // Stebėti LiveData
-        viewModel.getSelectedImage().observe(getViewLifecycleOwner(), this::updateImageView);
-        viewModel.getSelectedAudio().observe(getViewLifecycleOwner(), this::updateAudioView);
-        viewModel.getSelectedAudioTitle().observe(getViewLifecycleOwner(), this::updateAudioTitle);
+        viewModel.getSelectedImage().observe(getViewLifecycleOwner(), this::updateCombinedContent);
 
-        // Nustatyti mygtukų klausytojus
-        playButton.setOnClickListener(v -> playAudio());
-        pauseButton.setOnClickListener(v -> pauseAudio());
-        stopButton.setOnClickListener(v -> stopAudio());
+        viewModel.getSelectedAudio().observe(getViewLifecycleOwner(), audioUri -> {
+            currentAudioUri = audioUri;
+            updateCombinedContent(viewModel.getSelectedImage().getValue());
+        });
 
-        // Nustatyti sujungimo mygtuko klausytoją
-        combineButton.setOnClickListener(v -> {
-            Uri imageUri = viewModel.getSelectedImage().getValue();
-            Uri audioUri = viewModel.getSelectedAudio().getValue();
-
-            if (imageUri != null && audioUri != null) {
-                // Kviesti FFmpeg vykdymo metodą, perduodant šį fragmentą kaip listener
-                FfmpegExecutor.executeVideoCommand(requireContext(), imageUri, audioUri, this);
+        viewModel.getSelectedAudioTitle().observe(getViewLifecycleOwner(), title -> {
+            if (title != null && !title.isEmpty()) {
+                combinedAudioTitle.setText(title);
+                combinedAudioTitle.setVisibility(View.VISIBLE);
+                combinedPlayerControls.setVisibility((View.VISIBLE));
             } else {
-                Toast.makeText(requireContext(), "Pasirinkite ir paveikslėlį, ir garso failą.", Toast.LENGTH_SHORT).show();
+                combinedAudioTitle.setText("NO AUDIO");
+                combinedAudioTitle.setVisibility(View.VISIBLE);
             }
         });
 
-        updateNothingSelectedText();
+        setupMediaPlayerControls();
+        setupCombineButton();
 
         return view;
     }
 
-    private void updateImageView(Uri uri) {
-        if (uri != null) {
-            combinedImageView.setImageURI(uri);
-            combinedImageView.setVisibility(View.VISIBLE);
+    private void updateCombinedContent(Uri imageUri) {
+        boolean isImageSelected = imageUri != null;
+        boolean isAudioSelected = currentAudioUri != null;
+
+        if (isImageSelected) {
+            if (combinedImageView != null) {
+                combinedImageView.setImageURI(imageUri);
+                combinedImageView.setVisibility(View.VISIBLE);
+            }
         } else {
-            combinedImageView.setVisibility(View.GONE);
+            if (combinedImageView != null) {
+                combinedImageView.setVisibility(View.GONE);
+            }
         }
-        updateNothingSelectedText();
-    }
 
-    private void updateAudioView(Uri uri) {
-        currentAudioUri = uri;
-        stopAudio(); // Sustabdyti bet kokį grojamą garsą, jei šaltinis keičiasi
-        combinedPlayerControls.setVisibility(uri != null ? View.VISIBLE : View.GONE);
-        updateNothingSelectedText();
-    }
-
-    private void updateAudioTitle(String title) {
-        if (title != null) {
-            combinedAudioTitle.setText(title);
-            combinedAudioTitle.setVisibility(View.VISIBLE);
+        if (isImageSelected && isAudioSelected) {
+            if (nothingSelectedText != null) nothingSelectedText.setVisibility(View.GONE);
+            if (combinedPlayerControls != null) combinedPlayerControls.setVisibility(View.VISIBLE);
+            if (combineButton != null) combineButton.setVisibility(View.VISIBLE);
         } else {
-            combinedAudioTitle.setVisibility(View.GONE);
+            if (nothingSelectedText != null) nothingSelectedText.setVisibility(View.VISIBLE);
+            if (combinedPlayerControls != null) combinedPlayerControls.setVisibility(View.GONE);
+            if (combineButton != null) combineButton.setVisibility(View.GONE);
+            stopPlayback();
         }
     }
 
-    private void playAudio() {
+    private void setupMediaPlayerControls() {
+        if (playButton != null) {
+            playButton.setOnClickListener(v -> startPlayback());
+        }
+        if (pauseButton != null) {
+            pauseButton.setOnClickListener(v -> pausePlayback());
+        }
+        if (stopButton != null) {
+            stopButton.setOnClickListener(v -> stopPlayback());
+        }
+    }
+
+    private void setupCombineButton() {
+        if (combineButton == null) return;
+
+        combineButton.setOnClickListener(v -> {
+            Uri imageUri = viewModel.getSelectedImage().getValue();
+            Uri audioUri = viewModel.getSelectedAudio().getValue();
+            String audioTitle = viewModel.getSelectedAudioTitle().getValue();
+
+            if (imageUri != null && audioUri != null) {
+                String safeAudioTitle = (audioTitle != null && !audioTitle.isEmpty()) ? audioTitle : "Audio";
+
+                safeAudioTitle = safeAudioTitle.replaceAll("[^a-zA-Z0-9_\\-]", "_");
+
+                String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+
+                String outputFileName = "APPSAS_" + safeAudioTitle + "_" + timeStamp + ".mp4";
+
+                FfmpegExecutor.executeVideoCommand(requireContext(), imageUri, audioUri, outputFileName, this);
+            } else {
+                Toast.makeText(requireContext(), "Trūksta vaizdo arba garso failo!", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void startPlayback() {
         if (currentAudioUri == null) return;
-
-        try {
-            if (!mediaPlayer.isPlaying()) {
-                mediaPlayer.reset();
+        if (mediaPlayer == null) {
+            mediaPlayer = new MediaPlayer();
+            try {
                 mediaPlayer.setDataSource(requireContext(), currentAudioUri);
                 mediaPlayer.prepare();
                 mediaPlayer.start();
-                playButton.setEnabled(false);
-                pauseButton.setEnabled(true);
-                stopButton.setEnabled(true);
+            } catch (IOException e) {
+                Toast.makeText(requireContext(), "Klaida paleidžiant garsą: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-            Toast.makeText(requireContext(), "Klaida grojant garsą", Toast.LENGTH_SHORT).show();
+        } else if (!mediaPlayer.isPlaying()) {
+            mediaPlayer.start();
         }
     }
 
-    private void pauseAudio() {
-        if (mediaPlayer.isPlaying()) {
+    private void pausePlayback() {
+        if (mediaPlayer != null && mediaPlayer.isPlaying()) {
             mediaPlayer.pause();
-            playButton.setEnabled(true);
-            pauseButton.setEnabled(false);
         }
     }
 
-    private void stopAudio() {
-        if (mediaPlayer.isPlaying() || !playButton.isEnabled()) {
-            mediaPlayer.stop();
-            mediaPlayer.reset();
-            playButton.setEnabled(true);
-            pauseButton.setEnabled(false);
-            stopButton.setEnabled(false);
-        }
-    }
-
-    // Ištrauka iš CombinedFragment.java
-    private void updateNothingSelectedText() {
-        boolean imageSelected = viewModel.getSelectedImage().getValue() != null;
-        boolean audioSelected = viewModel.getSelectedAudio().getValue() != null;
-
-        if (!imageSelected && !audioSelected) {
-            nothingSelectedText.setVisibility(View.VISIBLE);
-            combineButton.setVisibility(View.GONE); // 1. Paslėpta, jei nieko nepasirinkta
-        } else {
-            nothingSelectedText.setVisibility(View.GONE);
-            if (imageSelected && audioSelected) {
-                combineButton.setVisibility(View.VISIBLE); // 2. Rodyti TIK jei abu pasirinkti
-            } else {
-                combineButton.setVisibility(View.GONE); // 3. Paslėpta, jei pasirinktas tik vienas failas
-            }
-        }
-    }
-
-    @Override
-    public void onDestroyView() {
-        super.onDestroyView();
-        // Atlaisvinti media grotuvą
+    private void stopPlayback() {
         if (mediaPlayer != null) {
+            mediaPlayer.stop();
             mediaPlayer.release();
             mediaPlayer = null;
         }
     }
 
-    // --- FfmpegListener implementacija ---
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        stopPlayback();
+    }
 
     @Override
     public void onFfmpegStart() {
-        // Išjungti sujungimo mygtuką, kol vyksta procesas
-        combineButton.setEnabled(false);
-        Toast.makeText(requireContext(), "Pradedamas vaizdo įrašo kūrimas (tai gali užtrukti)...", Toast.LENGTH_SHORT).show();
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(() -> {
+                if (combineButton != null) {
+                    combineButton.setVisibility(View.GONE);
+                    combineButton.setEnabled(false);
+                }
+                if (renderProgressBar != null) {
+                    renderProgressBar.setVisibility(View.VISIBLE);
+                }
+                Toast.makeText(requireContext(), "Pradedamas vaizdo įrašo kūrimas...", Toast.LENGTH_SHORT).show();
+            });
+        }
     }
 
     @Override
     public void onFfmpegSuccess(String outputFilePath) {
-        // BŪTINA PATIKRINTI, ar fragmentas vis dar prijungtas prie Activity,
-        // ir naudoti runOnUiThread, kad pereitumėte į Pagrindinę giją.
+
+        try {
+            String audioTitle = viewModel.getSelectedAudioTitle().getValue();
+            if (audioTitle == null || audioTitle.isEmpty()) {
+                audioTitle = "Nežinomas takelis";
+            }
+            String videoFileName = new File(outputFilePath).getName();
+            GoogleSheetsLogger.logRender(audioTitle, videoFileName);
+
+        } catch (Exception e) {
+            Log.e("CombinedFragment", "Klaida bandant registruoti į Google Sheets", e);
+        }
+
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
-                // Eilutė 191 iš Jūsų klaidos seka turbūt yra čia.
-                // DABAR GALITE SAUGIAI NAUDOTI TOAST IR ATNAUJINTI UI
+                if (renderProgressBar != null) {
+                    renderProgressBar.setVisibility(View.GONE);
+                }
+                if (combineButton != null) {
+                    combineButton.setVisibility(View.VISIBLE);
+                    combineButton.setEnabled(true);
+                    combineButton.setText("Sukurti Video");
+                }
                 Toast.makeText(getContext(), "Vaizdo įrašas paruoštas: " + outputFilePath, Toast.LENGTH_LONG).show();
-
-                // Pavyzdys, kaip atnaujinti UI:
-                // binding.progressBar.setVisibility(View.GONE);
-                // binding.btnStart.setEnabled(true);
-
-                // Jei norite bendrinti vaizdo įrašą, kvieskite kodą, kuris jį bendrina.
             });
         }
     }
@@ -206,12 +227,16 @@ public class CombinedFragment extends Fragment implements FfmpegExecutor.FfmpegL
     public void onFfmpegFailure(String errorMessage) {
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
-                // UI operacijos Pagrindinėje gijoje
+                if (renderProgressBar != null) {
+                    renderProgressBar.setVisibility(View.GONE);
+                }
+                if (combineButton != null) {
+                    combineButton.setVisibility(View.VISIBLE);
+                    renderProgressBar.setVisibility(View.GONE);
+                    combineButton.setEnabled(true);
+                    combineButton.setText("Sukurti Video");
+                }
                 Toast.makeText(getContext(), "Klaida: " + errorMessage, Toast.LENGTH_LONG).show();
-
-                // Pavyzdys, kaip atnaujinti UI:
-                // binding.progressBar.setVisibility(View.GONE);
-                // binding.btnStart.setEnabled(true);
             });
         }
     }

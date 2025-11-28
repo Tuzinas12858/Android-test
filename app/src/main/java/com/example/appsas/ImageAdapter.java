@@ -8,7 +8,7 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.ImageView;
-
+import com.bumptech.glide.Glide;
 import java.util.List;
 
 public class ImageAdapter extends BaseAdapter {
@@ -56,11 +56,11 @@ public class ImageAdapter extends BaseAdapter {
         ImageView imageView = gridItem.findViewById(R.id.grid_image_view);
         Button deleteButton = gridItem.findViewById(R.id.delete_image_button);
 
-        imageView.setImageURI(imageUris.get(position));
+        Glide.with(context)
+                .load(imageUris.get(position))
+                .centerCrop()
+                .into(imageView);
 
-        // Remove the two lines below that were causing the crash
-        // int size = parent.getWidth() / 3;
-        // imageView.setLayoutParams(new ViewGroup.LayoutParams(size, size));
 
         deleteButton.setOnClickListener(v -> {
             if (onDeleteClickListener != null) {

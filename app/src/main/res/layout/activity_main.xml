@@ -9,51 +9,61 @@
 
     <FrameLayout
         android:id="@+id/fragment_container"
-        android:layout_width="410dp"
-        android:layout_height="890dp"
-        android:paddingTop="80dp"
-        android:paddingBottom="20dp"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:ignore="MissingConstraints">
-
-        <LinearLayout
-            android:id="@+id/linearLayout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:orientation="horizontal"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent">
-
-            <Button
-                android:id="@+id/audio_section_button"
-                android:layout_width="wrap_content"
-                android:layout_height="62dp"
-                android:layout_gravity="center"
-                android:text="Audio" />
-
-            <Button
-                android:id="@+id/image_section_button"
-                android:layout_width="wrap_content"
-                android:layout_height="62dp"
-                android:layout_gravity="center"
-                android:text="Images" />
-
-            <Button
-                android:id="@+id/combined_section_button"
-                android:layout_width="wrap_content"
-                android:layout_height="62dp"
-                android:layout_gravity="center"
-                android:text="Combined" />
-
-            <Button
-                android:id="@+id/video_section_button"
-                android:layout_width="108dp"
-                android:layout_height="62dp"
-                android:layout_gravity="center"
-                android:text="Video" />
-        </LinearLayout>
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toTopOf="@+id/linearLayout"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
     </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/linearLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#3C3C3C"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <Button
+            android:id="@+id/audio_section_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:textSize="13dp"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="AUDIO" />
+
+        <Button
+            android:id="@+id/image_section_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="0dp"
+            android:textSize="13dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="IMAGE" />
+
+        <Button
+            android:id="@+id/combined_section_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="0dp"
+            android:textSize="13dp"
+            android:layout_height="62dp"
+            android:layout_weight="1"
+            android:text="RENDER" />
+
+        <Button
+            android:id="@+id/video_section_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="0dp"
+            android:textSize="13dp"
+            android:layout_height="62dp"
+            android:layout_weight="1"
+            android:text="VIDEO" />
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

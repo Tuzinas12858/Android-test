@@ -28,7 +28,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
-import androidx.lifecycle.ViewModelProvider; // ADD THIS
+import androidx.lifecycle.ViewModelProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,13 +37,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class AudioFragment extends Fragment {
+public class AudioFragment extends Fragment implements AudioService.AudioServiceCallback {
     private static final String PREFS_NAME = "MyPrefs";
     private static final String AUDIO_LIST_KEY = "audioList";
     private ListView playlistListView;
     private AudioListAdapter playlistAdapter;
     private List<String> songTitles = new ArrayList<>();
     private Handler handler = new Handler(Looper.getMainLooper());
+    private Runnable updateProgressRunnable;
+
     private List<Uri> playlist = new ArrayList<>();
     private ActivityResultLauncher<String[]> filePickerLauncher;
 
@@ -59,7 +61,8 @@ public class AudioFragment extends Fragment {
     private Button nextButton;
     private Button previousButton;
     private Button stopButton;
-    private CombinedViewModel viewModel; // ADD THIS
+    private CombinedViewModel viewModel;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -73,12 +76,21 @@ public class AudioFragment extends Fragment {
         playPauseButton = view.findViewById(R.id.play_pause_button);
         nextButton = view.findViewById(R.id.next_button);
         previousButton = view.findViewById(R.id.previous_button);
-        stopButton = view.findViewById(R.id.stop_button);
         playlistListView = view.findViewById(R.id.playlist_list_view);
         viewModel = new ViewModelProvider(requireActivity()).get(CombinedViewModel.class);
         playlistAdapter = new AudioListAdapter(requireContext(), songTitles);
         playlistListView.setAdapter(playlistAdapter);
         loadPlaylist();
+
+        updateProgressRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (isServiceBound && audioService.isPlaying()) {
+                    songProgressSeekBar.setProgress(audioService.getCurrentPosition());
+                    handler.postDelayed(this, 1000);
+                }
+            }
+        };
 
         playlistAdapter.setOnDeleteClickListener(position -> {
             playlist.remove(position);
@@ -86,6 +98,11 @@ public class AudioFragment extends Fragment {
             playlistAdapter.notifyDataSetChanged();
             savePlaylist();
             Toast.makeText(requireContext(), "Song deleted", Toast.LENGTH_SHORT).show();
+            if (isServiceBound && audioService.getCurrentSongIndex() == position) {
+                audioService.stopSong();
+                playerControlsLayout.setVisibility(View.GONE);
+                handler.removeCallbacks(updateProgressRunnable);
+            }
         });
 
         filePickerLauncher = registerForActivityResult(
@@ -122,14 +139,16 @@ public class AudioFragment extends Fragment {
             if (isServiceBound && audioService.isPlaying()) {
                 audioService.pauseSong();
                 playPauseButton.setText("Play");
-            } else if (isServiceBound && !playlist.isEmpty()) {
+                handler.removeCallbacks(updateProgressRunnable);
+            } else if (isServiceBound && audioService.getCurrentSongIndex() != -1) {
                 audioService.resumeSong();
                 playPauseButton.setText("Pause");
-                updateSongProgress();
-            } else if (isServiceBound && playlist.isEmpty()) {
-                Toast.makeText(requireContext(), "Please select a song first.", Toast.LENGTH_SHORT).show();
+                handler.post(updateProgressRunnable);
+            } else if (isServiceBound && !playlist.isEmpty()) {
+                audioService.playSong(0);
+                updateUI(0);
             } else {
-                // If service is not bound yet, just wait for it.
+                Toast.makeText(requireContext(), "Please select a song first.", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -153,35 +172,31 @@ public class AudioFragment extends Fragment {
             }
         });
 
-        stopButton.setOnClickListener(v -> {
-            if (isServiceBound) {
-                audioService.stopSong();
-                playerControlsLayout.setVisibility(View.GONE);
-                playPauseButton.setText("Play");
-            }
-        });
 
         songProgressSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 if (fromUser && isServiceBound) {
+
                     audioService.seekTo(progress);
                 }
             }
             @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {}
+            public void onStartTrackingTouch(SeekBar seekBar) {
+                handler.removeCallbacks(updateProgressRunnable);
+            }
             @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {}
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                handler.post(updateProgressRunnable);
+            }
         });
 
         playlistListView.setOnItemClickListener((parent, view1, position, id) -> {
             if (isServiceBound) {
-                // This logic remains the same
+
                 audioService.playSong(position);
                 updateUI(position);
 
-                // ADD THIS
-                // Get the selected items and update the ViewModel
                 Uri selectedUri = playlist.get(position);
                 String selectedTitle = songTitles.get(position);
                 viewModel.selectAudio(selectedUri, selectedTitle);
@@ -192,61 +207,69 @@ public class AudioFragment extends Fragment {
         return view;
     }
 
-    // The ServiceConnection handles binding to the service
+    @Override
+    public void onSongPrepared(int duration, int index) {
+        if (isServiceBound && index == audioService.getCurrentSongIndex()) {
+            songProgressSeekBar.setMax(duration);
+            songProgressSeekBar.setProgress(0);
+            handler.removeCallbacks(updateProgressRunnable);
+            handler.post(updateProgressRunnable);
+            updateUI(index);
+        }
+    }
+
+    @Override
+    public void onSongCompletion() {
+        handler.removeCallbacks(updateProgressRunnable);
+        playPauseButton.setText("Play");
+        songProgressSeekBar.setProgress(0);
+        playerControlsLayout.setVisibility(View.GONE);
+    }
     private ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
             AudioService.LocalBinder binder = (AudioService.LocalBinder) service;
             audioService = binder.getService();
             isServiceBound = true;
+            audioService.setCallback(AudioFragment.this);
 
-            // Set the playlist on the service when it's bound
             audioService.setPlaylist(playlist);
 
-            // Update UI to reflect current song if one is playing
-            if (audioService.isPlaying() || audioService.getCurrentSongIndex() != -1) {
+            if (audioService.getCurrentSongIndex() != -1) {
                 playerControlsLayout.setVisibility(View.VISIBLE);
                 updateUI(audioService.getCurrentSongIndex());
-                updateSongProgress();
+                if (audioService.isPlaying()) {
+                    songProgressSeekBar.setMax(audioService.getDuration());
+                    handler.post(updateProgressRunnable);
+                }
+            } else {
+                playerControlsLayout.setVisibility(View.GONE);
             }
         }
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
             isServiceBound = false;
+            audioService.setCallback(null);
         }
     };
 
-    // Updates UI elements based on the current song
     private void updateUI(int index) {
         if (index >= 0 && index < songTitles.size()) {
             playerControlsLayout.setVisibility(View.VISIBLE);
             songTitleTextView.setText(songTitles.get(index));
             songNumberTextView.setText("Song " + (index + 1) + " of " + playlist.size());
-            playPauseButton.setText("Pause");
-        }
-    }
-
-    // Updates the seekbar and song progress in a loop
-    private void updateSongProgress() {
-        if (isServiceBound) {
-            songProgressSeekBar.setMax(audioService.getDuration());
-            handler.post(new Runnable() {
-                @Override
-                public void run() {
-                    if (isServiceBound && audioService.isPlaying()) {
-                        songProgressSeekBar.setProgress(audioService.getCurrentPosition());
-                        handler.postDelayed(this, 1000);
-                    }
-                }
-            });
+            if (isServiceBound && audioService.isPlaying()) {
+                playPauseButton.setText("Pause");
+            } else {
+                playPauseButton.setText("Play");
+            }
         }
     }
 
     @Override
     public void onStart() {
         super.onStart();
-        // Start and bind to the service
         Intent intent = new Intent(requireContext(), AudioService.class);
         requireContext().startService(intent);
         requireContext().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
@@ -255,15 +278,13 @@ public class AudioFragment extends Fragment {
     @Override
     public void onStop() {
         super.onStop();
-        // Unbind from the service but do not stop it
+        handler.removeCallbacks(updateProgressRunnable);
         if (isServiceBound) {
             requireContext().unbindService(serviceConnection);
             isServiceBound = false;
         }
-        handler.removeCallbacksAndMessages(null);
     }
 
-    // Your existing loadPlaylist, savePlaylist and getFileNameFromUri methods here
     private void savePlaylist() {
         SharedPreferences sharedPrefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPrefs.edit();

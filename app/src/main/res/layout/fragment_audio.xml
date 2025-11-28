@@ -17,6 +17,7 @@
         android:layout_marginTop="80dp"
         android:backgroundTint="#4E943A"
         android:text="IMPORT AUDIO"
+        app:cornerRadius="4dp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
@@ -30,20 +31,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:srcCompat="@mipmap/ic_launcher_foreground" />
-
-    <Button
-        android:id="@+id/stop_button"
-        android:layout_width="73dp"
-        android:layout_height="68dp"
-        android:layout_gravity="center"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="84dp"
-        android:backgroundTint="#943A3A"
-        android:text="STOP"
-        android:textAlignment="center"
-        android:textSize="8dp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
 
     <ScrollView
         android:layout_width="403dp"
@@ -104,17 +91,22 @@
                     android:id="@+id/previous_button"
                     android:layout_width="50dp"
                     android:layout_height="50dp"
+                    android:backgroundTint="#AB9C9C"
+                    app:cornerRadius="4dp"
                     app:icon="@android:drawable/ic_media_rew"
+                    app:iconGravity="start"
+                    app:iconTintMode="multiply"
                     tools:layout_editor_absoluteX="88dp"
                     tools:layout_editor_absoluteY="323dp" />
 
                 <Button
                     android:id="@+id/play_pause_button"
                     android:layout_width="100dp"
-                    android:layout_height="100dp"
+                    android:layout_height="78dp"
                     android:layout_gravity="center"
-                    android:backgroundTint="#C0C0C0"
+                    android:backgroundTint="#AB8A8A"
                     android:text="PAUSE/PLAY"
+                    app:cornerRadius="14dp"
                     tools:layout_editor_absoluteX="138dp"
                     tools:layout_editor_absoluteY="298dp" />
 
@@ -122,8 +114,12 @@
                     android:id="@+id/next_button"
                     android:layout_width="50dp"
                     android:layout_height="50dp"
+                    android:backgroundTint="#AB9C9C"
                     android:text="Next"
+                    app:cornerRadius="4dp"
                     app:icon="@android:drawable/ic_media_ff"
+                    app:iconGravity="end"
+                    app:iconTintMode="multiply"
                     tools:layout_editor_absoluteX="238dp"
                     tools:layout_editor_absoluteY="323dp" />
 

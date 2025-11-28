@@ -1,14 +1,17 @@
 package com.example.appsas;
 
 import android.content.Context;
+import android.content.res.Resources;
+import android.database.Cursor;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
-import android.os.Environment; // PRIDĖTA: nauja importo eilutė
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.OpenableColumns;
 import android.util.Log;
 import android.widget.Toast;
-
+import com.example.appsas.R;
 import com.arthenica.ffmpegkit.FFmpegKit;
 import com.arthenica.ffmpegkit.ReturnCode;
 
@@ -16,23 +19,48 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Locale;
 
-/**
- * Sąsaja, skirta FFmpeg komandos vykdymo rezultatams perduoti.
- */
 
 
 public class FfmpegExecutor {
 
     private static final String TAG = "FfmpegExecutor";
 
-    /**
-     * Nukopijuoja turinio URI (Content URI) failą į viešą aplanką, kad FFmpeg galėtų jį pasiekti.
-     * Naudosime privačią saugyklą tik laikinam nuotraukos ir garso saugojimui.
-     */
+
+    public static String getFileNameFromUri(Context context, Uri uri) {
+        String result = null;
+        if (uri.getScheme().equals("content")) {
+            try (Cursor cursor = context.getContentResolver().query(uri, null, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                    if (nameIndex != -1) {
+                        result = cursor.getString(nameIndex);
+                    }
+                }
+            }
+        }
+        if (result == null) {
+            result = uri.getPath();
+            int cut = result.lastIndexOf('/');
+            if (cut != -1) {
+                result = result.substring(cut + 1);
+            }
+        }
+        if (result != null) {
+            int dotIndex = result.lastIndexOf('.');
+            if (dotIndex > 0) {
+                result = result.substring(0, dotIndex);
+            }
+            result = result.replaceAll("[^a-zA-Z0-9_\\-]", "_");
+        }
+        return (result != null && !result.trim().isEmpty()) ? result : "Render";
+    }
+
+    
     private static File copyUriToFile(Context context, Uri uri, String filePrefix, String fileExtension) throws Exception {
-        // Laikinus failus kopijuojame į privačią saugyklą, kad nereikėtų papildomų leidimų
         InputStream inputStream = context.getContentResolver().openInputStream(uri);
         if (inputStream == null) {
             throw new Exception("Negalima atidaryti įvesties srauto URI: " + uri.toString());
@@ -51,83 +79,164 @@ public class FfmpegExecutor {
         return tempFile;
     }
 
-    /**
-     * Vykdo FFmpeg komandą, kad sujungtų statinį vaizdą ir garso įrašą į MP4 vaizdo įrašą.
-     * Išvestis saugoma viešajame "Movies" aplanke.
-     * @param listener Klausytojas, kuris praneš apie sėkmę arba nesėkmę.
-     */
-    public static void executeVideoCommand(Context context, Uri imageUri, Uri audioUri, FfmpegListener listener) {
+    
+    private static File copyResourceToFile(Context context, int resourceId, String filePrefix) throws Exception {
+        File tempFile = new File(context.getExternalFilesDir(null), filePrefix + System.currentTimeMillis() + ".png");
+
+        try (InputStream is = context.getResources().openRawResource(resourceId);
+             OutputStream os = new FileOutputStream(tempFile)) {
+
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = is.read(buffer)) > 0) {
+                os.write(buffer, 0, length);
+            }
+        } catch (Resources.NotFoundException e) {
+            throw new Exception("Logo resursas nerastas! Patikrinkite ID: " + resourceId, e);
+        }
+
+        return tempFile;
+    }
+
+
+    
+    public static void executeVideoCommand(Context context, Uri imageUri, Uri audioUri, String audioTitle, FfmpegListener listener) {
         Handler mainHandler = new Handler(Looper.getMainLooper());
 
-        // 1. Nustatyti išvesties vietą (VIEŠAS "MOVIES" APLANKAS)
-        // Šis kelias turėtų būti pasiekiamas per failų tvarkyklę.
-        File outputDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES);
-        if (outputDir != null && !outputDir.exists()) {
-            // Svarbu: Android Q+ gali apriboti šį metodą, tačiau jis geriausiai tinka
-            // platesniam suderinamumui. Tikrasis kelias yra priklausomas nuo API lygio.
-            outputDir.mkdirs();
+        if (listener != null) {
+            listener.onFfmpegStart();
         }
 
-        File outputFile = new File(outputDir, "APPSAS_Render_" + System.currentTimeMillis() + ".mp4");
-        // 2. Nukopijuoti įvesties failus į laikiną privačią saugyklą
-        File imageFile = null;
-        File audioFile = null;
+        new Thread(() -> {
 
-        try {
-            String imageExtension = "jpg";
-            String mimeType = context.getContentResolver().getType(imageUri);
-            if (mimeType != null && mimeType.contains("/")) {
-                imageExtension = mimeType.substring(mimeType.lastIndexOf("/") + 1);
+            File imageFile = null;
+            File audioFile = null;
+            File logoFile = null;
+            File processedImageFile = null;
+            File outputFile = null;
+
+            try {
+                String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+                String safeAudioTitle = (audioTitle != null && !audioTitle.isEmpty()) ? audioTitle : "Render";
+
+                File outputDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES);
+                if (outputDir != null && !outputDir.exists()) {
+                    outputDir.mkdirs();
+                }
+                outputFile = new File(outputDir, "APPSAS_" + safeAudioTitle + "_" + timeStamp + ".mp4");
+
+                mainHandler.post(() -> Toast.makeText(context, "Kopijuojami failai į laikiną saugyklą...", Toast.LENGTH_SHORT).show());
+
+                String imageExtension = "jpg";
+                String mimeType = context.getContentResolver().getType(imageUri);
+                if (mimeType != null && mimeType.contains("/")) {
+                    imageExtension = mimeType.substring(mimeType.lastIndexOf("/") + 1);
+                }
+                imageFile = copyUriToFile(context, imageUri, "input_image_", "." + imageExtension);
+
+                String audioExtension = "mp3";
+                String audioMimeType = context.getContentResolver().getType(audioUri);
+                if (audioMimeType != null && audioMimeType.contains("/")) {
+                    audioExtension = audioMimeType.substring(audioMimeType.lastIndexOf("/") + 1);
+                }
+                audioFile = copyUriToFile(context, audioUri, "input_audio_", "." + audioExtension);
+
+                logoFile = copyResourceToFile(context, R.mipmap.rqem, "app_logo_");
+                processedImageFile = new File(context.getExternalFilesDir(null), "processed_image_" + System.currentTimeMillis() + ".png");
+
+            } catch (Exception e) {
+                String error = "Klaida kopijuojant failus: " + e.getMessage();
+                Log.e(TAG, error);
+                mainHandler.post(() -> Toast.makeText(context, error, Toast.LENGTH_LONG).show());
+                if (listener != null) {
+                    listener.onFfmpegFailure(error);
+                }
+                if (imageFile != null) imageFile.delete();
+                if (audioFile != null) audioFile.delete();
+                if (logoFile != null) logoFile.delete();
+                return;
             }
-            imageFile = copyUriToFile(context, imageUri, "input_image_", "." + imageExtension);
 
-            String audioExtension = "mp3";
-            String audioMimeType = context.getContentResolver().getType(audioUri);
-            if (audioMimeType != null && audioMimeType.contains("/")) {
-                audioExtension = audioMimeType.substring(audioMimeType.lastIndexOf("/") + 1);
-            }
-            audioFile = copyUriToFile(context, audioUri, "input_audio_", "." + audioExtension);
+            mainHandler.post(() -> Toast.makeText(context, "Pradedamas vaizdo įrašo generavimas (1/2: Nuotraukos apdorojimas)...", Toast.LENGTH_LONG).show());
 
-        } catch (Exception e) {
-            String error = "Klaida kopijuojant failus: " + e.getMessage();
-            Log.e(TAG, error);
-            mainHandler.post(() -> Toast.makeText(context, error, Toast.LENGTH_LONG).show());
-            if (listener != null) {
-                listener.onFfmpegFailure(error);
-            }
-            if (imageFile != null) imageFile.delete();
-            if (audioFile != null) audioFile.delete();
-            return;
-        }
+            final File finalImageFile = imageFile;
+            final File finalAudioFile = audioFile;
+            final File finalLogoFile = logoFile;
+            final File finalProcessedImageFile = processedImageFile;
+            final File finalOutputFile = outputFile;
 
-        // 3. Sudaryti FFmpeg komandą
+            String imageProcessingCommand = String.format(
+                    Locale.US,
+                    "-y -i \"%s\" -i \"%s\" -filter_complex \"[0:v]crop=min(iw\\,ih):min(iw\\,ih),scale=1920:1920,format=gray,gblur=sigma=5[bg]; [1:v]scale=iw*1:ih*1[logo]; [bg][logo]overlay=(W-w)/2:(H-h)/2\" \"%s\"",                    finalImageFile.getAbsolutePath(),
+                    finalLogoFile.getAbsolutePath(),
+                    finalProcessedImageFile.getAbsolutePath()
+            );
+
+            Log.d(TAG, "FFmpeg 1 (Image Processing): " + imageProcessingCommand);
+
+            FFmpegKit.executeAsync(imageProcessingCommand, imageSession -> {
+                ReturnCode imageReturnCode = imageSession.getReturnCode();
+
+                if (ReturnCode.isSuccess(imageReturnCode)) {
+                    Log.d(TAG, "FFmpeg 1 sėkmė. Pradedamas 2 žingsnis: Video generavimas.");
+                    mainHandler.post(() -> Toast.makeText(context, "Nuotrauka apdorota. Pradedama video generacija (2/2)...", Toast.LENGTH_SHORT).show());
+
+                    generateFinalVideo(context, finalProcessedImageFile, finalAudioFile, finalOutputFile, listener, finalImageFile, finalLogoFile);
+
+                } else {
+                    String log = imageSession.getAllLogsAsString();
+                    String message = "Klaida apdorojant nuotrauką. Klaidos kodas: " + imageReturnCode + "\nLog: " + log;
+                    Log.e(TAG, message);
+
+                    if (finalImageFile != null) finalImageFile.delete();
+                    if (finalAudioFile != null) finalAudioFile.delete();
+                    if (finalLogoFile != null) finalLogoFile.delete();
+                    if (finalProcessedImageFile != null) finalProcessedImageFile.delete();
+                    if (finalOutputFile.exists()) finalOutputFile.delete();
+
+                    mainHandler.post(() -> Toast.makeText(context, message, Toast.LENGTH_LONG).show());
+                    if (listener != null) {
+                        listener.onFfmpegFailure(message);
+                    }
+                }
+            });
+        }).start();
+    }
+    
+    private static void generateFinalVideo(Context context, File processedImageFile, File audioFile, File outputFile, FfmpegListener listener, File originalImageFile, File logoFile) {
+        Handler mainHandler = new Handler(Looper.getMainLooper());
+
+        String videoResolutionW = "1920";
+        String videoResolutionH = "1080";
+
+        String scaleParams = String.format(Locale.US, "%s:%s:force_original_aspect_ratio=decrease", videoResolutionW, videoResolutionH);
+        String padParams = String.format(Locale.US, "%s:%s:-1:-1:color=black", videoResolutionW, videoResolutionH);
+
         String ffmpegCommand = String.format(
                 Locale.US,
-                "-y -loop 1 -i \"%s\" -i \"%s\" -vf format=gray,scale=1080:1080 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -shortest \"%s\"",
-                imageFile.getAbsolutePath(),
+                "-y -loop 1 -i \"%s\" -i \"%s\" -vf scale=%s,pad=%s -c:v libx264 -crf 20 -preset veryfast -pix_fmt yuv420p -shortest \"%s\"",
+                processedImageFile.getAbsolutePath(),
                 audioFile.getAbsolutePath(),
+                scaleParams,
+                padParams,
                 outputFile.getAbsolutePath()
         );
 
-        // 4. Vykdyti FFmpeg
-        Toast.makeText(context, "Pradedamas vaizdo įrašo generavimas į VIEŠĄJĮ aplanką 'Movies'...", Toast.LENGTH_LONG).show();
+        Log.d(TAG, "FFmpeg 2 (Video Generation): " + ffmpegCommand);
 
-        File finalImageFile = imageFile;
-        File finalAudioFile = audioFile;
-
-        FFmpegKit.executeAsync(ffmpegCommand, session -> {
-            com.arthenica.ffmpegkit.ReturnCode returnCode = session.getReturnCode();
+        FFmpegKit.executeAsync(ffmpegCommand, videoSession -> {
+            ReturnCode videoReturnCode = videoSession.getReturnCode();
             String message;
 
-            // Išvalyti LAIKINUS privačius įvesties failus
-            if (finalImageFile != null) finalImageFile.delete();
-            if (finalAudioFile != null) finalAudioFile.delete();
+            if (originalImageFile != null) originalImageFile.delete();
+            if (logoFile != null) logoFile.delete();
+            if (processedImageFile != null) processedImageFile.delete();
+            if (audioFile != null) audioFile.delete();
 
-            if (ReturnCode.isSuccess(returnCode)) {
-                message = "Vaizdo įrašas sėkmingai sukurtas VIEŠAME aplanke: " + outputFile.getAbsolutePath();
+            if (ReturnCode.isSuccess(videoReturnCode)) {
+                message = "Vaizdo įrašas sėkmingai sukurtas VIEŠAME aplanke: " + outputFile.getName();
                 Log.d(TAG, message);
 
-                // **PRANEŠAME MEDIA SCANNER'IUI APIE SUKURTĄ FAILĄ VIEŠOJE SAUGYKLOJE**
                 MediaScannerConnection.scanFile(
                         context,
                         new String[] { outputFile.getAbsolutePath() },
@@ -138,7 +247,7 @@ public class FfmpegExecutor {
                 if (listener != null) {
                     listener.onFfmpegSuccess(outputFile.getAbsolutePath());
                 }
-            } else if (ReturnCode.isCancel(returnCode)) {
+            } else if (ReturnCode.isCancel(videoReturnCode)) {
                 message = "Vaizdo įrašo generavimas atšauktas.";
                 Log.d(TAG, message);
                 if (listener != null) {
@@ -146,8 +255,8 @@ public class FfmpegExecutor {
                 }
                 if (outputFile.exists()) outputFile.delete();
             } else {
-                String log = session.getAllLogsAsString();
-                message = "Klaida generuojant vaizdo įrašą. Klaidos kodas: " + returnCode + "\nLog: " + log;
+                String log = videoSession.getAllLogsAsString();
+                message = "Klaida generuojant vaizdo įrašą. Klaidos kodas: " + videoReturnCode + "\nLog: " + log;
                 Log.e(TAG, message);
                 if (listener != null) {
                     listener.onFfmpegFailure(message);
@@ -159,9 +268,9 @@ public class FfmpegExecutor {
             mainHandler.post(() -> Toast.makeText(context, finalMessage, Toast.LENGTH_LONG).show());
         });
     }
+
     public interface FfmpegListener {
         void onFfmpegStart();
-
         void onFfmpegSuccess(String outputFilePath);
         void onFfmpegFailure(String errorMessage);
     }

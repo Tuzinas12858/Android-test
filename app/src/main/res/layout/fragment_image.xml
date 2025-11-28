@@ -18,6 +18,7 @@
         android:layout_marginTop="80dp"
         android:backgroundTint="#4E943A"
         android:text="IMPORT IMAGE"
+        app:cornerRadius="4dp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
@@ -30,20 +31,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:srcCompat="@mipmap/ic_launcher_foreground" />
-
-    <Button
-        android:id="@+id/stop_button"
-        android:layout_width="73dp"
-        android:layout_height="68dp"
-        android:layout_gravity="center"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="84dp"
-        android:backgroundTint="#943A3A"
-        android:text="STOP"
-        android:textAlignment="center"
-        android:textSize="8dp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
 
 
     <LinearLayout

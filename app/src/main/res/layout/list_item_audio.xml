@@ -19,14 +19,13 @@
 
     <Button
         android:id="@+id/delete_song_button"
-
         android:layout_width="30dp"
         android:layout_height="30dp"
         android:layout_gravity="top|end"
         android:layout_margin="4dp"
         android:backgroundTint="#619E1919"
-        android:clickable="false"
-        android:focusable="false"
+        android:clickable="true"
+        android:focusable="true"
         app:icon="@android:drawable/ic_delete"
         app:iconGravity="textStart"
         app:iconPadding="0dp" />
