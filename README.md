@@ -15,15 +15,17 @@ VIDEO fragmentas:
   - Nuotraukų displayinimas lentelėje
   - Įkeltų nuotraukų ištrinimas
 
-
-11-24 funkcionalumas
-  - Pagaliau pridėtas veikiantis FFMPEG
-  - Galima pasirinkti nuotrauką
-  - Galima pasirinkti audio failą
-  - Pridėta trečia sekcija - COMBINED
-  - COMBINED sekcijoj galime matyti pasirinktą nuotrauką/audio failą
-  - COMBINED sekcijoj galime paspausti SUKURTI VIDEO mygtuką ir bus sukuriamas vaizdo įrašas (demo)
-  - Vaizdo įrašas saugojamas android vidinėje atmintyje
-  - Pridėta ketvirta sekcija - Video
-  - Video sekcijoj galime matyti visus sukurtus mūsų video
-  - Video sekcijoj paspaudus ant video galime juos peržiūrėti
+COMBINED fragmentas:
+  - Prašo pasirinkti nuotrauką ir audio failą
+  - Pasirinkus nuotrauką ir audio failą šioje skilty galim pasirinkimus matyti
+  - Galime paleisti audio failą
+  - Pasirinkus nuotrauką ir audio failą galime spausti RENDER mygtuką, kuris inicijuoja video generavimo funkciją
+  - Video generuojamas pagal šias gaires:
+    - Padaro vaizdą juodai baltą
+    - Pritaiko gaussian blur
+    - Uždeda ant pagrindinės nuotraukos logotipą
+    - Pritraukia nuotrauką 1:1 ratio 
+  - Sėkmingai sukurto video duomenys perduodami google sheets per API, išsaugant Sukūrimo datą, Mp3 pavadinimą ir galutinio mp4 failo pavadinimą
+VIDEOS fragmentas:
+  - Galime matyti visus išrenderintus failus vidinėje atmintyje ieškant Movies/"APPSAS_**"
+  - Paspaudus ant failo jį galima peržiūrėti
