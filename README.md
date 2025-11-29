@@ -26,6 +26,7 @@ COMBINED fragmentas:
     - Uždeda ant pagrindinės nuotraukos logotipą
     - Pritraukia nuotrauką 1:1 ratio 
   - Sėkmingai sukurto video duomenys perduodami google sheets per API, išsaugant Sukūrimo datą, Mp3 pavadinimą ir galutinio mp4 failo pavadinimą
+
 VIDEOS fragmentas:
   - Galime matyti visus išrenderintus failus vidinėje atmintyje ieškant Movies/"APPSAS_**"
   - Paspaudus ant failo jį galima peržiūrėti
